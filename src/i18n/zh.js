@@ -55,6 +55,8 @@ export default {
   'Order value in period': '期间订单额',
   '· average {0}': '· 平均 {0}',
   '{0} orders{1} · booked value, not profit': '{0} 张订单{1} · 已下单金额，不是利润',
+  'Service order value in period': '本期服务类订单额',
+  '{0} service order(s) · {1} of order value in period': '{0} 张服务类订单 · 占期间订单额 {1}',
   'Cash collected in period': '期间已收款',
   '{0} receipts by payment date': '{0} 笔收款（按收款日期）',
   'Outstanding balance': '未收款余额',

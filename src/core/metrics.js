@@ -82,6 +82,10 @@ export function computeMetrics(records, reportingDate, options = {}) {
 
   const periodOrderValue = inPeriod.reduce((a, s) => a + s.amount, 0);
   const periodOrderCount = new Set(inPeriod.map(s => s.id)).size;
+  // Service orders (offering_type 'service') in the same period, same filters and exclusions.
+  const servicesInPeriod = inPeriod.filter(s => s.offering_type === 'service');
+  const periodServiceOrderValue = servicesInPeriod.reduce((a, s) => a + s.amount, 0);
+  const periodServiceOrderCount = new Set(servicesInPeriod.map(s => s.id)).size;
 
   // Comparison: month-to-date compares with the same day numbers of the prior month;
   // any other range compares with the immediately preceding window of equal length.
@@ -125,6 +129,8 @@ export function computeMetrics(records, reportingDate, options = {}) {
     period_order_value: periodOrderValue,
     period_order_count: periodOrderCount,
     average_order_value: periodOrderCount ? Math.round(periodOrderValue / periodOrderCount) : null,
+    period_service_order_value: periodServiceOrderValue,
+    period_service_order_count: periodServiceOrderCount,
     period_cash_collected: cashInPeriod.cents,
     period_receipt_count: cashInPeriod.count,
     all_time_order_value: eligible.reduce((a, s) => a + s.amount, 0),

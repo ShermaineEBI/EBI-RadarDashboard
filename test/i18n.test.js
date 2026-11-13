@@ -81,3 +81,11 @@ test('the "Match your columns" labels looked up by name are all translated', asy
   assert.ok(strings.length > 40);
   assert.deepEqual(strings.filter(s => !Object.hasOwn(ZH, s)), [], 'missing Chinese');
 });
+
+test('the service order value tile reads 本期服务类订单额 in Chinese', () => {
+  setLocale('zh-CN');
+  assert.equal(tr('Service order value in period'), '本期服务类订单额');
+  assert.equal(tr('{0} service order(s) · {1} of order value in period', 5, '1.5%'), '5 张服务类订单 · 占期间订单额 1.5%');
+  setLocale('en');
+  assert.equal(tr('Service order value in period'), 'Service order value in period');
+});

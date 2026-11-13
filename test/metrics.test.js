@@ -96,3 +96,42 @@ test('b2b day1: suggestions carry evidence, recorded deadlines and suggested dat
   assert.ok(tasks.some(t => t.task_key === 'follow_up_due:BC-036'));
   assert.equal(tasks.filter(t => t.rule === 'completion_overdue').length, 0, 'no overdue completions on Day 1');
 });
+
+// "本期服务类订单额": service orders (offering_type Service) in the period. The B2B answers were
+// worked out independently from data/betterspace-b2b/*/Sales.csv (Service rows dated
+// 2026-08-01 to the as-of date, Cancelled left out): BS-020, BS-062, BS-021 (RM 800 each),
+// BS-008 and BS-007 (RM 500 each) = 5 orders, RM 3,400. The B2C shop sells products only.
+for (const [business, day, value, count] of [['b2b', 'day1', 3400, 5], ['b2b', 'day2', 3400, 5], ['b2c', 'day1', 0, 0], ['b2c', 'day2', 0, 0]]) {
+  test(`${business} ${day}: service order value in period`, () => {
+    const s = loadScenario(`betterspace-${business}`, day);
+    const m = computeMetrics(s.records, s.reportingDate, { historyStart: s.historyStart });
+    assert.equal(m.period_service_order_value, cents(value));
+    assert.equal(m.period_service_order_count, count);
+    assert.ok(m.period_service_order_value <= m.period_order_value, 'part of the period order value');
+  });
+}
+
+test('service order value leaves out products, cancelled sales, other periods and filtered-out sales', () => {
+  const sale = (id, date, offering_type, amount, extra = {}) => ({ id, customer_id: 'C1', date, offering_type, amount, status: 'done', channel: 'Shop', ...extra });
+  const records = {
+    customers: [{ id: 'C1' }],
+    sales: [
+      sale('S1', '2026-08-05', 'service', 10000),
+      sale('S2', '2026-08-06', 'service', 5000, { channel: 'Online' }),
+      sale('S3', '2026-08-07', 'product', 99900),
+      sale('S4', '2026-08-08', 'service', 70000, { status: 'excluded' }),
+      sale('S5', '2026-07-31', 'service', 30000),
+      sale('S6', '2026-08-25', 'service', 40000), // after the reporting date
+    ],
+    payments: [], stock: [],
+  };
+  const m = computeMetrics(records, '2026-08-20');
+  assert.equal(m.period_service_order_value, 15000);
+  assert.equal(m.period_service_order_count, 2);
+  const shopOnly = computeMetrics(records, '2026-08-20', { filters: { channel: 'Shop' } });
+  assert.equal(shopOnly.period_service_order_value, 10000);
+  assert.equal(shopOnly.period_service_order_count, 1);
+  const none = computeMetrics({ customers: [], sales: [], payments: [], stock: [] }, '2026-08-20');
+  assert.equal(none.period_service_order_value, 0);
+  assert.equal(none.period_service_order_count, 0);
+});
