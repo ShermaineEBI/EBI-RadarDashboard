@@ -1,7 +1,8 @@
 import { h, t, add, modal, toast } from '../dom.js';
 import { pageHead, scopeBar, tile } from '../components.js';
 import { icon } from '../icons.js';
-import { view, reportingDate, calendarItems, notes, records, money } from '../view-state.js';
+import { view, reportingDate, calendarItems, notes, records, money, businessName } from '../view-state.js';
+import { buildIcs } from '../../core/ics.js';
 import { saleDrawer, customerDrawer } from '../drawers.js';
 import { navigate, rerender } from '../router.js';
 import { savedMessage } from './tasks.js';
@@ -31,7 +32,9 @@ export function renderCalendar() {
   const pick = d => { view.calDay = d; rerender(); };
   const setView = v => { view.calView = v; rerender(); };
 
-  const root = h('div', { class: 'cal-page' }, pageHead(tl('Calendar'), h('button', { class: 'btn primary small', onclick: () => editNote(null) }, tl('+ Add note'))), scopeBar({ period: false }));
+  const root = h('div', { class: 'cal-page' }, pageHead(tl('Calendar'),
+    h('button', { class: 'btn small', onclick: downloadCalendar }, icon('calendar'), tl('Download for Google Calendar')),
+    h('button', { class: 'btn primary small', onclick: () => editNote(null) }, tl('+ Add note'))), scopeBar({ period: false }));
 
   // Summary cards: counts and sums of the items in the month shown.
   const sum = calendarMonthSummary(items, month.slice(0, 7), rd);
@@ -60,7 +63,7 @@ export function renderCalendar() {
   add(root, h('div', { class: 'cal-layout' },
     h('div', { class: 'card cal-card' }, head, legend, body),
     agenda(items, byDate, month, rd, sum, setView)));
-  add(root, t('p', tr('Dates are calendar days; the records contain no appointment times, so none are shown. Accepted tasks appear here; the top picks of the AI analysis are shown dashed until you accept them. Nothing is sent to an external calendar.'), 'hint'));
+  add(root, t('p', tr('Dates are calendar days; the records contain no appointment times, so none are shown. Accepted tasks appear here; the top picks of the AI analysis are shown dashed until you accept them. Nothing is sent to an external calendar: "Download for Google Calendar" saves a file on this computer that you can import yourself.'), 'hint'));
   return root;
 }
 
@@ -146,6 +149,29 @@ function agenda(items, byDate, month, rd, sum, setView) {
       h('span', {}, h('b', {}, String(sum.overdue)), ' · ', tr('{0} payment(s) · {1} follow-up(s) · {2} promised', sum.overdueByType.payment, sum.overdueByType.followup, sum.overdueByType.completion)),
       h('span', { class: 'ag-link' }, tl('Show the list'), ' ›')));
   return box;
+}
+
+// Saves the calendar as an .ics file on this computer (nothing is uploaded), then explains how
+// to import it into Google Calendar. AI suggestions not accepted yet are left out.
+function downloadCalendar() {
+  const rd = reportingDate();
+  const name = businessName();
+  const { text, count } = buildIcs(calendarItems(), { calendarName: name, reportingDate: rd, uidPrefix: view.businessId, typeLabel: type => TYPE_LABEL[type]?.() || type });
+  const file = `${name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'dashboard'}-calendar-${rd}.ics`;
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/calendar;charset=utf-8' }));
+  const a = h('a', { href: url, download: file, hidden: true });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  modal(tr('Calendar file saved'), h('div', {},
+    t('p', tr('{0} items saved to {1} on this computer. Nothing was uploaded.', count, file)),
+    t('h3', tr('Put it in Google Calendar')),
+    h('ol', { class: 'small' },
+      t('li', tr('Open Google Calendar on a computer. Next to "Other calendars", choose + and "Create new calendar", and name it, for example, "Business dashboard". A separate calendar is easy to replace later.')),
+      t('li', tr('In that calendar\'s settings, set the default notifications for all-day events (for example, on the day at 9 am). Google usually does not keep the reminders in an imported file.')),
+      t('li', tr('Settings → "Import & export" → choose the file you saved → "Add to calendar": the new calendar → Import.'))),
+    t('h3', tr('When your Excel changes')),
+    t('p', tr('Google does not update an imported file by itself. Save the file again, then delete the separate calendar, create it again and import the new file, so paid or finished items do not stay behind.'), 'small'),
+    t('p', tr('The file holds customer names and amounts from your Excel. Once imported, Google keeps a copy in your Google account.'), 'small muted')));
 }
 
 function openItem(item) {
