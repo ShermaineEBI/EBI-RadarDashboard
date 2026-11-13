@@ -114,6 +114,20 @@ export function computeMetrics(records, reportingDate, options = {}) {
   const byChannel = {};
   for (const s of inPeriod) { const k = s.channel || tr('(none)'); byChannel[k] = (byChannel[k] || 0) + s.amount; }
 
+  // Product orders in the period, per product (services are left out). Keyed by item_id;
+  // named from the stock list, else the sale's description.
+  const stockName = new Map((records.stock || []).map(st => [st.id, st.name]));
+  const productTotals = new Map();
+  for (const s of inPeriod) {
+    if (s.offering_type !== 'product') continue;
+    const id = s.item_id || s.description || tr('(none)');
+    const row = productTotals.get(id) || { id, name: stockName.get(s.item_id) || s.description || id, value: 0, count: 0 };
+    row.value += s.amount;
+    row.count++;
+    productTotals.set(id, row);
+  }
+  const byProduct = [...productTotals.values()].sort((a, b) => b.value - a.value || a.id.localeCompare(b.id));
+
   return {
     version: METRICS_VERSION,
     reporting_date: reportingDate,
@@ -156,6 +170,7 @@ export function computeMetrics(records, reportingDate, options = {}) {
     comparison: { ...comparison, prior_order_value: priorOrderValue, growth },
     trend,
     by_channel: byChannel,
+    by_product: byProduct,
   };
 }
 

@@ -89,3 +89,10 @@ test('the service order value tile reads 本期服务类订单额 in Chinese', (
   setLocale('en');
   assert.equal(tr('Service order value in period'), 'Service order value in period');
 });
+
+test('the order value by product chart reads 按产品的订单额 in Chinese', () => {
+  setLocale('zh-CN');
+  assert.equal(tr('Order value by product'), '按产品的订单额');
+  assert.equal(tr('Other ({0} products)', 2), '其他（2 项产品）');
+  setLocale('en');
+});

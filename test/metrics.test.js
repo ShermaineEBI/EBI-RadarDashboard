@@ -135,3 +135,45 @@ test('service order value leaves out products, cancelled sales, other periods an
   assert.equal(none.period_service_order_value, 0);
   assert.equal(none.period_service_order_count, 0);
 });
+
+// "按产品的订单额": product orders in the period per product. Worked out independently from
+// data/betterspace-*/day1/Sales.csv (Product rows dated 2026-08-01 to 2026-08-30, Cancelled
+// left out, summed per item_id). Products plus services make up the period order value.
+test('order value by product (day 1)', () => {
+  const expectedTop = {
+    b2b: [['T008', 'Reception desk', 70400, 2], ['T003', 'Meeting table', 66600, 3], ['T002', 'Office desk', 42900, 7]],
+    b2c: [['R001', 'Ergonomic chair', 8100, 16], ['R006', 'Standing desk', 4250, 2], ['R011', 'Desk shelf', 3120, 13]],
+  };
+  const expectedCount = { b2b: 8, b2c: 12 };
+  for (const business of ['b2b', 'b2c']) {
+    const s = loadScenario(`betterspace-${business}`, 'day1');
+    const m = computeMetrics(s.records, s.reportingDate, { historyStart: s.historyStart });
+    assert.equal(m.by_product.length, expectedCount[business]);
+    assert.deepEqual(m.by_product.slice(0, 3).map(p => [p.id, p.name, p.value, p.count]), expectedTop[business].map(([id, name, value, count]) => [id, name, cents(value), count]));
+    const productTotal = m.by_product.reduce((a, p) => a + p.value, 0);
+    assert.equal(productTotal + m.period_service_order_value, m.period_order_value);
+    assert.ok(m.by_product.every((p, i, all) => i === 0 || all[i - 1].value >= p.value), 'largest first');
+  }
+});
+
+test('order value by product leaves out services, cancelled sales, other periods and filtered-out sales', () => {
+  const sale = (id, date, item_id, amount, extra = {}) => ({ id, customer_id: 'C1', date, item_id, description: `Item ${item_id}`, offering_type: 'product', amount, status: 'done', channel: 'Shop', ...extra });
+  const records = {
+    customers: [{ id: 'C1' }],
+    sales: [
+      sale('S1', '2026-08-05', 'P1', 10000),
+      sale('S2', '2026-08-06', 'P1', 5000, { channel: 'Online' }),
+      sale('S3', '2026-08-07', 'P2', 3000),
+      sale('S4', '2026-08-08', 'SV1', 70000, { offering_type: 'service' }),
+      sale('S5', '2026-08-09', 'P2', 20000, { status: 'excluded' }),
+      sale('S6', '2026-07-31', 'P2', 30000),
+      sale('S7', '2026-08-10', '', 800, { description: 'Gift card' }),
+    ],
+    payments: [],
+    stock: [{ id: 'P1', name: 'Chair', on_hand: 1 }],
+  };
+  const m = computeMetrics(records, '2026-08-20');
+  assert.deepEqual(m.by_product.map(p => [p.id, p.name, p.value, p.count]), [['P1', 'Chair', 15000, 2], ['P2', 'Item P2', 3000, 1], ['Gift card', 'Gift card', 800, 1]]);
+  const shopOnly = computeMetrics(records, '2026-08-20', { filters: { channel: 'Shop' } });
+  assert.deepEqual(shopOnly.by_product.map(p => [p.id, p.value]), [['P1', 10000], ['P2', 3000], ['Gift card', 800]]);
+});
